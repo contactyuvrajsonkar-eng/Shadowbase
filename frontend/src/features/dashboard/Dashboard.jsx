@@ -57,6 +57,10 @@ function Dashboard() {
         {/* Overview */}
         <section className="overview-section">
           <h2>Overview</h2>
+          
+          <p className="overview-subtitle">
+           Track database activity and migration performance
+        </p>
 
           <div className="metrics-grid">
             <div className="metric-card">
