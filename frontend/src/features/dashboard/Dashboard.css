@@ -14,6 +14,11 @@ body {
   display: flex;
   background: #f4f6fb;
 }
+
+/* =========================
+   SIDEBAR
+========================= */
+
 .sidebar {
   width: 220px;
   min-height: 100vh;
@@ -22,6 +27,7 @@ body {
   padding: 28px 18px;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
 }
 
 .brand {
@@ -29,6 +35,9 @@ body {
   align-items: center;
   gap: 12px;
   padding: 0 8px 35px;
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 700;
 }
 
 .brand-icon {
@@ -65,6 +74,7 @@ body {
   color: #d9dcf5;
   font-size: 14px;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .nav-item.active {
@@ -112,6 +122,9 @@ body {
   background: #22c55e;
 }
 
+/* =========================
+   MAIN CONTENT
+========================= */
 
 .main-content {
   flex: 1;
@@ -138,8 +151,19 @@ body {
   font-size: 14px;
 }
 
+/* =========================
+   OVERVIEW
+========================= */
+
 .overview-section {
   margin-bottom: 26px;
+}
+
+.overview-section h2 {
+  margin: 0 0 16px;
+  color: #151b46;
+  font-size: 22px;
+  text-align: center;
 }
 
 .overview-header {
@@ -157,9 +181,6 @@ body {
   color: #69718e;
   font-size: 13px;
 }
-
-
-
 
 .metrics-grid {
   display: grid;
@@ -196,9 +217,8 @@ body {
   min-width: 0;
 }
 
-.metric-card span {
-  display: block;
-  white-space: nowrap;
+.metric-label {
+  margin: 0;
   color: #22294f;
   font-size: 13px;
   font-weight: 600;
@@ -213,6 +233,18 @@ body {
 
 .metric-card p {
   margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.metric-positive {
+  color: #15945b;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.metric-warning {
+  color: #ef7d22;
   font-size: 11px;
   font-weight: 600;
 }
@@ -233,16 +265,16 @@ body {
   background: #f39a26;
 }
 
-.positive {
-  color: #15945b;
+/* =========================
+   CHARTS
+========================= */
+
+.charts-section {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 26px;
 }
-
-.negative {
-  color: #ef3340;
-}
-
-
-
 
 .charts-grid {
   display: grid;
@@ -276,8 +308,9 @@ body {
   font-size: 12px;
 }
 
-
-
+/* =========================
+   BAR CHART
+========================= */
 
 .bar-chart {
   height: 285px;
@@ -285,12 +318,12 @@ body {
   display: flex;
   align-items: flex-end;
   justify-content: space-around;
-  gap: 20px;
-  padding: 20px 10px 30px;
+  gap: 12px;
+  padding: 20px 18px 34px;
   border-bottom: 1px solid #dfe2eb;
 }
 
-.bar-group {
+.bar-column {
   height: 100%;
   flex: 1;
   max-width: 70px;
@@ -306,33 +339,63 @@ body {
   font-size: 12px;
   font-weight: 700;
   margin-bottom: 8px;
+  white-space: nowrap;
 }
 
-.query-bar {
+.bar-wrapper {
   width: 100%;
-  min-height: 25px;
+  height: 205px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.bar {
+  width: 100%;
+  max-width: 48px;
+  min-height: 12px;
   background: linear-gradient(
     180deg,
-    #7259ee 0%,
-    #5943d2 100%
+    #4f8df7 0%,
+    #3274e8 100%
   );
   border-radius: 8px 8px 0 0;
-  transition: transform 0.2s ease;
+  transition:
+    height 0.3s ease,
+    transform 0.2s ease;
 }
 
-.query-bar:hover {
+.bar:hover {
   transform: translateY(-4px);
 }
 
-.bar-day {
-  position: absolute;
-  bottom: -27px;
+.bar-label {
+  margin-top: 9px;
   color: #6f7690;
   font-size: 12px;
+  font-weight: 500;
 }
 
+/* Error Rate bars */
+.error-rate-chart .bar {
+  background: linear-gradient(
+    180deg,
+    #8a73f1 0%,
+    #5b45d4 100%
+  );
+}
 
+.error-bar {
+  background: linear-gradient(
+    180deg,
+    #8a73f1 0%,
+    #5b45d4 100%
+  );
+}
 
+/* =========================
+   OLD ERROR CHART SUPPORT
+========================= */
 
 .error-bar-chart {
   height: 285px;
@@ -425,25 +488,6 @@ body {
   white-space: nowrap;
 }
 
-.error-bar {
-  width: 100%;
-  max-width: 48px;
-  min-height: 12px;
-  background: linear-gradient(
-    180deg,
-    #8a73f1 0%,
-    #5b45d4 100%
-  );
-  border-radius: 7px 7px 0 0;
-  position: relative;
-  z-index: 2;
-  transition: transform 0.2s ease;
-}
-
-.error-bar:hover {
-  transform: translateY(-4px);
-}
-
 .error-day {
   position: absolute;
   bottom: -25px;
@@ -451,8 +495,9 @@ body {
   font-size: 11px;
 }
 
-
-
+/* =========================
+   RECENT ACTIVITY
+========================= */
 
 .activity-section {
   background: #ffffff;
@@ -460,6 +505,16 @@ body {
   border-radius: 14px;
   padding: 22px 24px;
   box-shadow: 0 5px 16px rgba(31, 41, 82, 0.05);
+}
+
+.section-header {
+  margin-bottom: 18px;
+}
+
+.section-header h2 {
+  margin: 0;
+  color: #151b46;
+  font-size: 20px;
 }
 
 .activity-header {
@@ -492,6 +547,24 @@ body {
   border-top: 1px solid #edf0f5;
 }
 
+.activity-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-content h3 {
+  margin: 0;
+  color: #20264e;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.activity-content p {
+  margin: 5px 0 0;
+  color: #7d849a;
+  font-size: 12px;
+}
+
 .activity-item strong {
   display: block;
   color: #20264e;
@@ -506,9 +579,10 @@ body {
 
 .activity-time {
   display: block;
-  margin-top: 5px;
+  margin-top: 2px;
   color: #9ca2b4;
   font-size: 10px;
+  white-space: nowrap;
 }
 
 .activity-dot {
@@ -531,11 +605,11 @@ body {
   background: #7a4de8;
 }
 
-
-
+/* =========================
+   RESPONSIVE
+========================= */
 
 @media (max-width: 1100px) {
-
   .sidebar {
     width: 200px;
   }
@@ -544,14 +618,16 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .charts-grid {
+  .charts-section {
     grid-template-columns: 1fr;
   }
 
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 700px) {
-
   .sidebar {
     display: none;
   }
@@ -576,4 +652,13 @@ body {
     padding: 18px;
   }
 
+  .bar-chart {
+    gap: 6px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .bar {
+    max-width: 38px;
+  }
 }
