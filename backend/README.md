@@ -38,7 +38,7 @@ Packages:
 - Java 21
 - Spring Boot 4.1.2
 - Testcontainers 2.0.5 (the version is chosen by Spring Boot, I did not write it in the pom)
-- PostgreSQL image: `postgres:16-alpine`
+- PostgreSQL image: `postgres:17-alpine`
 - Maven
 - Docker Desktop on Windows
 - Eclipse IDE and Postman

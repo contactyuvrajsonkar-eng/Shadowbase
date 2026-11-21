@@ -25,7 +25,7 @@ class SandboxSeederIntegrationTest {
     // and removed after the last one
     @Container
     static PostgreSQLContainer postgres =
-            new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
+            new PostgreSQLContainer(DockerImageName.parse("postgres:17-alpine"));
 
     private final SandboxSeeder seeder = new SandboxSeeder();
 

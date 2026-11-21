@@ -135,15 +135,28 @@ public class SandboxService {
 
     /** Stops and removes the container, then forgets the sandbox. */
     public void deleteSandbox(String sandboxId) {
-        SandboxRecord record = registry.remove(sandboxId)
-                .orElseThrow(() -> sandboxNotFound(sandboxId));
+        SandboxRecord record = getRecord(sandboxId);
 
-        try {
-            record.getContainer().stop();
-            log.info("Sandbox {} deleted, container stopped and removed", sandboxId);
-        } catch (RuntimeException e) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
-                    "Could not stop the PostgreSQL container", e);
+        // Same lock that seedSandbox uses to claim the sandbox
+        synchronized (record) {
+            if (record.getStatus() == SandboxStatus.SEEDING) {
+                // 409 is my proposal: the contract names the code but not its HTTP status
+                throw new ApiException(HttpStatus.CONFLICT, "SANDBOX_NOT_READY",
+                        "Sandbox is being seeded and cannot be deleted right now");
+            }
+
+            // remove() also tells us if another delete already got here first
+            if (registry.remove(sandboxId).isEmpty()) {
+                throw sandboxNotFound(sandboxId);
+            }
+
+            try {
+                record.getContainer().stop();
+                log.info("Sandbox {} deleted, container stopped and removed", sandboxId);
+            } catch (RuntimeException e) {
+                throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
+                        "Could not stop the PostgreSQL container", e);
+            }
         }
     }
 
