@@ -8,12 +8,15 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.internship.testcontainers_postgres_manager.dto.CreateSandboxRequest;
+import com.internship.testcontainers_postgres_manager.dto.MetricsResponse;
 import com.internship.testcontainers_postgres_manager.dto.SandboxResponse;
 import com.internship.testcontainers_postgres_manager.dto.SeedRequest;
 import com.internship.testcontainers_postgres_manager.dto.SeedResponse;
+import com.internship.testcontainers_postgres_manager.dto.SqlErrorsResponse;
 import com.internship.testcontainers_postgres_manager.service.SandboxService;
 
 import jakarta.validation.Valid;
@@ -52,6 +55,19 @@ public class SandboxController {
     public SeedResponse seedSandbox(@PathVariable("sandboxId") String sandboxId,
                                     @Valid @RequestBody SeedRequest request) {
         return sandboxService.seedSandbox(sandboxId, request);
+    }
+
+    // GET /api/v1/sandboxes/{sandboxId}/metrics -> 200 OK
+    @GetMapping("/{sandboxId}/metrics")
+    public MetricsResponse getMetrics(@PathVariable("sandboxId") String sandboxId) {
+        return sandboxService.getMetrics(sandboxId);
+    }
+
+    // GET /api/v1/sandboxes/{sandboxId}/errors?limit=50 -> 200 OK
+    @GetMapping("/{sandboxId}/errors")
+    public SqlErrorsResponse getErrors(@PathVariable("sandboxId") String sandboxId,
+                                       @RequestParam(name = "limit", defaultValue = "50") int limit) {
+        return sandboxService.getErrors(sandboxId, limit);
     }
 
     // DELETE /api/v1/sandboxes/{sandboxId} -> 204 No Content

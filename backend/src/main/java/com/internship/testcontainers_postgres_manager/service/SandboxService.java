@@ -1,5 +1,9 @@
 package com.internship.testcontainers_postgres_manager.service;
 
+import com.internship.testcontainers_postgres_manager.dto.MetricsResponse;
+
+import com.internship.testcontainers_postgres_manager.dto.SqlErrorsResponse;
+
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -20,6 +24,7 @@ import com.internship.testcontainers_postgres_manager.dto.SandboxStatus;
 import com.internship.testcontainers_postgres_manager.dto.SeedRequest;
 import com.internship.testcontainers_postgres_manager.dto.SeedResponse;
 import com.internship.testcontainers_postgres_manager.exception.ApiException;
+import com.internship.testcontainers_postgres_manager.dto.SqlErrorsResponse;
 
 /**
  * Business logic for sandboxes. The controller calls this class; this class
@@ -96,6 +101,23 @@ public class SandboxService {
 	public SandboxResponse getSandbox(String sandboxId) {
 		return toResponse(getRecord(sandboxId));
 	}
+	
+    /** Returns the replay metrics of one sandbox (all zeros until a replay has run). */
+    public MetricsResponse getMetrics(String sandboxId) {
+        return getRecord(sandboxId).getTelemetry().toMetrics(sandboxId);
+    }
+
+    /** Returns the newest SQL errors of one sandbox. The contract's default limit is 50. */
+    public SqlErrorsResponse getErrors(String sandboxId, int limit) {
+        SandboxRecord record = getRecord(sandboxId);
+
+        // Maximum of 500 is my assumption: the contract only shows limit=50
+        if (limit < 1 || limit > 500) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR",
+                    "limit must be between 1 and 500");
+        }
+        return new SqlErrorsResponse(sandboxId, record.getTelemetry().latestErrors(limit));
+    }
 
 	/** Creates the sample tables and rows inside the sandbox's database. */
 	public SeedResponse seedSandbox(String sandboxId, SeedRequest request) {

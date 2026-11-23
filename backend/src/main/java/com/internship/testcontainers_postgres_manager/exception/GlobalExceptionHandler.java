@@ -1,5 +1,6 @@
 package com.internship.testcontainers_postgres_manager.exception;
 
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.stream.Collectors;
@@ -55,7 +56,13 @@ public ResponseEntity<ApiErrorResponse> handleUnreadableBody(
     return build(HttpStatus.BAD_REQUEST.value(), "VALIDATION_ERROR",
             "Request body is missing or is not valid JSON", request);
 }
-
+// A query parameter has the wrong type, for example ?limit=abc
+@ExceptionHandler(MethodArgumentTypeMismatchException.class)
+public ResponseEntity<ApiErrorResponse> handleTypeMismatch(
+        MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+    return build(HttpStatus.BAD_REQUEST.value(), "VALIDATION_ERROR",
+            "Invalid value for parameter '" + ex.getName() + "'", request);
+}
 // Safety net for everything else
 @ExceptionHandler(Exception.class)
 public ResponseEntity<ApiErrorResponse> handleUnexpected(
