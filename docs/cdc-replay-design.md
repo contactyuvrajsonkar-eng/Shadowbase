@@ -58,3 +58,21 @@ Convert `created_at` to a timezone-aware Java time value before binding.
 Apply each event in a database transaction. Commit the transaction first, then
 commit the Kafka offset. On SQL failure, roll back and record the event and
 error so it can be investigated or retried.
+
+## Replay Verification Example
+
+Run this sequence against a sandbox database only. These are the expected
+results after parsing and converting event values to PostgreSQL types.
+
+| Event | Expected action |
+|---|---|
+| Order `id=4`, `op=c`, status `CDC_TEST`, amount `12.34` | Insert/upsert the row using values from `after`. |
+| Order `id=4`, `op=u`, status `CDC_UPDATED` | Update the row using values from `after` and the ID from the Kafka key. |
+| Order `id=4`, `op=d` | Delete the row using the ID from the Kafka key. |
+| Same key with a null value | Ignore the tombstone; do not run another SQL statement. |
+
+After the sequence, order `id=4` should not exist in the sandbox.
+
+For delete events, do not depend on non-key fields in `before`; PostgreSQL may
+include only the primary key there. Convert `total_amount` to `BigDecimal`
+before binding it to JDBC.
