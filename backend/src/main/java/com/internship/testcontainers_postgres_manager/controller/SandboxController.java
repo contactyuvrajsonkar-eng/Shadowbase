@@ -1,6 +1,7 @@
 package com.internship.testcontainers_postgres_manager.controller;
 
 import org.springframework.http.HttpStatus;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,7 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-
+import com.internship.testcontainers_postgres_manager.dto.ReplayRequest;
+import com.internship.testcontainers_postgres_manager.dto.ReplayResponse;
 import com.internship.testcontainers_postgres_manager.dto.MigrationRequest;
 import com.internship.testcontainers_postgres_manager.dto.MigrationResponse;
 import com.internship.testcontainers_postgres_manager.dto.CreateSandboxRequest;
@@ -66,6 +68,13 @@ public class SandboxController {
     public MigrationResponse applyMigration(@PathVariable("sandboxId") String sandboxId,
                                             @Valid @RequestBody MigrationRequest request) {
         return sandboxService.applyMigration(sandboxId, request);
+    }
+    
+    // POST /api/v1/sandboxes/{sandboxId}/replay -> 200 OK
+    @PostMapping("/{sandboxId}/replay")
+    public ReplayResponse controlReplay(@PathVariable("sandboxId") String sandboxId,
+                                        @Valid @RequestBody ReplayRequest request) {
+        return sandboxService.controlReplay(sandboxId, request);
     }
 
     // GET /api/v1/sandboxes/{sandboxId}/metrics -> 200 OK

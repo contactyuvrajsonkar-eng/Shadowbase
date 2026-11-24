@@ -127,6 +127,15 @@ Response:
 ```
 The whole script runs as one transaction, so if one statement fails, nothing is changed. A failed script returns `422` with the code `MIGRATION_FAILED` (I chose 422 myself, the contract does not give a status).
 
+**Start or stop a replay** - `POST /sandboxes/{sandboxId}/replay` - returns `200 OK`
+
+Request: `{ "action": "START" }` or `{ "action": "STOP" }`
+
+Response: `{ "sandboxId": "sbx-001", "replayStatus": "RUNNING" }` (or `"STOPPED"`)
+
+The replay is a **simulator** for now: every second it runs 3 fixed statements (2 SELECTs and 1 UPDATE) against the sandbox and counts successes and errors, so the metrics and errors endpoints show real values. The real Kafka replay can replace it later. A replay can only start on a seeded sandbox.
+
+
 Error codes I used:
 
 - `VALIDATION_ERROR` (400): the request body is wrong or missing
@@ -166,6 +175,7 @@ This is a learning project, not something to put on a public server.
 - The container ports are open on all network interfaces and protected only by the random password.
 - The registry is in memory, so it only works with one running copy of the app.
 - The migration endpoint runs any SQL it receives. That is only safe because it runs inside the throwaway sandbox container and never touches a production database.
+- The replay is a simulator with fixed statements, not real production traffic.
 
 ## Problems I faced
 
@@ -177,7 +187,7 @@ This is a learning project, not something to put on a public server.
 
 ## What is not done yet
 
-Replay, migrations, metrics, SQL errors and live updates from the contract are not implemented yet.
+ migrations, metrics, SQL errors and live updates from the contract are not implemented yet.
 
 ## Seeding in this version
 

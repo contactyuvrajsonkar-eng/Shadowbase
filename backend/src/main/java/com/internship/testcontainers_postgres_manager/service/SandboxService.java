@@ -18,6 +18,10 @@ import com.internship.testcontainers_postgres_manager.dto.CreateSandboxRequest;
 import com.internship.testcontainers_postgres_manager.dto.MetricsResponse;
 import com.internship.testcontainers_postgres_manager.dto.MigrationRequest;
 import com.internship.testcontainers_postgres_manager.dto.MigrationResponse;
+import com.internship.testcontainers_postgres_manager.dto.ReplayAction;
+import com.internship.testcontainers_postgres_manager.dto.ReplayRequest;
+import com.internship.testcontainers_postgres_manager.dto.ReplayResponse;
+import com.internship.testcontainers_postgres_manager.dto.ReplayStatus;
 import com.internship.testcontainers_postgres_manager.dto.SandboxResponse;
 import com.internship.testcontainers_postgres_manager.dto.SandboxStatus;
 import com.internship.testcontainers_postgres_manager.dto.SeedRequest;
@@ -27,7 +31,8 @@ import com.internship.testcontainers_postgres_manager.exception.ApiException;
 
 /**
  * Business logic for sandboxes. The controller calls this class;
- * this class talks to Docker (through Testcontainers), the seeder, the migrator and the registry.
+ * this class talks to Docker (through Testcontainers), the seeder, the migrator,
+ * the replayer and the registry.
  */
 @Service
 public class SandboxService {
@@ -40,6 +45,7 @@ public class SandboxService {
     private final SandboxRegistry registry;
     private final SandboxSeeder seeder;
     private final SandboxMigrator migrator;
+    private final SandboxReplayer replayer;
     private final String postgresImage;
     private final String databaseName;
     private final String username;
@@ -49,6 +55,7 @@ public class SandboxService {
     public SandboxService(SandboxRegistry registry,
                           SandboxSeeder seeder,
                           SandboxMigrator migrator,
+                          SandboxReplayer replayer,
                           @Value("${sandbox.postgres.image}") String postgresImage,
                           @Value("${sandbox.postgres.database}") String databaseName,
                           @Value("${sandbox.postgres.username}") String username,
@@ -56,6 +63,7 @@ public class SandboxService {
         this.registry = registry;
         this.seeder = seeder;
         this.migrator = migrator;
+        this.replayer = replayer;
         this.postgresImage = postgresImage;
         this.databaseName = databaseName;
         this.username = username;
@@ -187,6 +195,57 @@ public class SandboxService {
         }
     }
 
+    /** Starts or stops the replay of one sandbox. */
+    public ReplayResponse controlReplay(String sandboxId, ReplayRequest request) {
+        SandboxRecord record = getRecord(sandboxId);
+
+        // Same lock as seed, migration and delete
+        synchronized (record) {
+            // A delete may have finished while we waited for the lock
+            if (registry.find(sandboxId).isEmpty()) {
+                throw sandboxNotFound(sandboxId);
+            }
+
+            if (request.action() == ReplayAction.START) {
+                return startReplay(record);
+            }
+            return stopReplay(record);
+        }
+    }
+
+    private ReplayResponse startReplay(SandboxRecord record) {
+        SandboxStatus status = record.getStatus();
+
+        // Already running: starting again changes nothing
+        if (status == SandboxStatus.REPLAYING) {
+            return new ReplayResponse(record.getSandboxId(), ReplayStatus.RUNNING);
+        }
+
+        // Replay needs the sample tables, so the sandbox must have been seeded
+        boolean seeded = status == SandboxStatus.SEEDED || status == SandboxStatus.STOPPED;
+        if (!seeded || !record.getContainer().isRunning()) {
+            // 409 is my proposal: the contract names the code but not its HTTP status
+            throw new ApiException(HttpStatus.CONFLICT, "SANDBOX_NOT_READY",
+                    "Sandbox must be seeded before a replay can start");
+        }
+
+        replayer.start(record);
+        record.setStatus(SandboxStatus.REPLAYING);
+        log.info("Replay started on sandbox {}", record.getSandboxId());
+        return new ReplayResponse(record.getSandboxId(), ReplayStatus.RUNNING);
+    }
+
+    private ReplayResponse stopReplay(SandboxRecord record) {
+        replayer.stop(record.getSandboxId());
+
+        // Only a sandbox that was really replaying becomes STOPPED
+        if (record.getStatus() == SandboxStatus.REPLAYING) {
+            record.setStatus(SandboxStatus.STOPPED);
+            log.info("Replay stopped on sandbox {}", record.getSandboxId());
+        }
+        return new ReplayResponse(record.getSandboxId(), ReplayStatus.STOPPED);
+    }
+
     /** Finds the internal record, or throws the contract's SANDBOX_NOT_FOUND. */
     public SandboxRecord getRecord(String sandboxId) {
         return registry.find(sandboxId).orElseThrow(() -> sandboxNotFound(sandboxId));
@@ -211,6 +270,12 @@ public class SandboxService {
                 // 409 is my proposal: the contract names the code but not its HTTP status
                 throw new ApiException(HttpStatus.CONFLICT, "SANDBOX_NOT_READY",
                         "Sandbox is being seeded and cannot be deleted right now");
+            }
+
+            // A running replay must stop before its container disappears
+            if (record.getStatus() == SandboxStatus.REPLAYING) {
+                replayer.stop(sandboxId);
+                record.setStatus(SandboxStatus.STOPPED);
             }
 
             try {
