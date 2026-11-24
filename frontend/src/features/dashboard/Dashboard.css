@@ -662,3 +662,28 @@ body {
     max-width: 38px;
   }
 }
+
+/* Sidebar Navigation Buttons */
+
+.sidebar-nav .nav-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.sidebar-nav .nav-item.active {
+  background: #5b45c9;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.sidebar-nav button:hover {
+  background: #2a2b5b;
+}
+
+.sidebar-nav button.active:hover {
+  background: #5b45c9;
+}
