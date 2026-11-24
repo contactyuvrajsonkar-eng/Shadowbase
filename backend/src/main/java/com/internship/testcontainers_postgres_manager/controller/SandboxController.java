@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+
+import com.internship.testcontainers_postgres_manager.dto.MigrationRequest;
+import com.internship.testcontainers_postgres_manager.dto.MigrationResponse;
 import com.internship.testcontainers_postgres_manager.dto.CreateSandboxRequest;
 import com.internship.testcontainers_postgres_manager.dto.MetricsResponse;
 import com.internship.testcontainers_postgres_manager.dto.SandboxResponse;
@@ -55,6 +58,14 @@ public class SandboxController {
     public SeedResponse seedSandbox(@PathVariable("sandboxId") String sandboxId,
                                     @Valid @RequestBody SeedRequest request) {
         return sandboxService.seedSandbox(sandboxId, request);
+    }
+    
+    
+    // POST /api/v1/sandboxes/{sandboxId}/migrations -> 200 OK
+    @PostMapping("/{sandboxId}/migrations")
+    public MigrationResponse applyMigration(@PathVariable("sandboxId") String sandboxId,
+                                            @Valid @RequestBody MigrationRequest request) {
+        return sandboxService.applyMigration(sandboxId, request);
     }
 
     // GET /api/v1/sandboxes/{sandboxId}/metrics -> 200 OK

@@ -115,6 +115,18 @@ If I seed again, the numbers stay the same because the tables are cleared first.
 }
 ```
 
+**Apply a migration** - `POST /sandboxes/{sandboxId}/migrations` - returns `200 OK`
+
+Request:
+```json
+{ "script": "ALTER TABLE public.orders DROP COLUMN status;" }
+```
+Response:
+```json
+{ "migrationId": "mig-001", "sandboxId": "sbx-001", "status": "APPLIED", "appliedAt": "2026-11-21T10:00:00Z" }
+```
+The whole script runs as one transaction, so if one statement fails, nothing is changed. A failed script returns `422` with the code `MIGRATION_FAILED` (I chose 422 myself, the contract does not give a status).
+
 Error codes I used:
 
 - `VALIDATION_ERROR` (400): the request body is wrong or missing
@@ -153,6 +165,7 @@ This is a learning project, not something to put on a public server.
 - A program that controls Docker has a lot of power over the computer it runs on, so this is risky if misused.
 - The container ports are open on all network interfaces and protected only by the random password.
 - The registry is in memory, so it only works with one running copy of the app.
+- The migration endpoint runs any SQL it receives. That is only safe because it runs inside the throwaway sandbox container and never touches a production database.
 
 ## Problems I faced
 
@@ -166,8 +179,11 @@ This is a learning project, not something to put on a public server.
 
 Replay, migrations, metrics, SQL errors and live updates from the contract are not implemented yet.
 
+## Seeding in this version
+
+`sourceDatabase` is accepted but not used yet. This version seeds a fixed sample dataset (2 customers and 2 orders). Cloning a snapshot of the production database is planned as a later feature.
+
 ## Things to confirm with my team leader
 
 - The contract example shows 3 orders, but the schema file in the repo inserts 2.
-- What `sourceDatabase` and `snapshot` should really do. Right now I seed a fixed sample dataset.
 - The HTTP status for `SANDBOX_NOT_READY`, and whether `SANDBOX_LIMIT_REACHED` is okay.
