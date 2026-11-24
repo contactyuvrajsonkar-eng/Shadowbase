@@ -14,9 +14,15 @@ private final Map<String,SandboxRecord> sandboxes=new ConcurrentHashMap<>();
 
 private final AtomicInteger idCounter=new AtomicInteger();
 
+private final AtomicInteger migrationCounter = new AtomicInteger(0);
+
 public String nextSandboxId() 
 {
 	return String.format("sbx-%03d",idCounter.incrementAndGet());
+}
+/** Produces ids like mig-001, mig-002 (the format used in the contract). */
+public String nextMigrationId() {
+    return String.format("mig-%03d", migrationCounter.incrementAndGet());
 }
 
 public void add(SandboxRecord record) {
