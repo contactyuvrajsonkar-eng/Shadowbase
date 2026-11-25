@@ -1,6 +1,7 @@
 package com.internship.testcontainers_postgres_manager.controller;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -88,6 +89,12 @@ public class SandboxController {
     public SqlErrorsResponse getErrors(@PathVariable("sandboxId") String sandboxId,
                                        @RequestParam(name = "limit", defaultValue = "50") int limit) {
         return sandboxService.getErrors(sandboxId, limit);
+    }
+    
+    // GET /api/v1/sandboxes/{sandboxId}/events -> 200 OK, a stream that stays open
+    @GetMapping("/{sandboxId}/events")
+    public SseEmitter streamEvents(@PathVariable("sandboxId") String sandboxId) {
+        return sandboxService.openEventStream(sandboxId);
     }
 
     // DELETE /api/v1/sandboxes/{sandboxId} -> 204 No Content

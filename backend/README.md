@@ -135,6 +135,19 @@ Response: `{ "sandboxId": "sbx-001", "replayStatus": "RUNNING" }` (or `"STOPPED"
 
 The replay is a **simulator** for now: every second it runs 3 fixed statements (2 SELECTs and 1 UPDATE) against the sandbox and counts successes and errors, so the metrics and errors endpoints show real values. The real Kafka replay can replace it later. A replay can only start on a seeded sandbox.
 
+**Live updates** - `GET /sandboxes/{sandboxId}/events` - a stream of Server-Sent Events
+
+Open it with `curl -N http://localhost:8080/api/v1/sandboxes/sbx-001/events`. The server keeps the connection open and sends:
+
+```text
+event:metrics
+data:{"sandboxId":"sbx-001","queriesReplayed":24,"errorCount":2,"errorRatePercent":8.33,"lagMs":140}
+
+event:sql-error
+data:{"eventId":"evt-001","operation":"UPDATE","tableName":"orders","message":"column \"status\" of relation \"orders\" does not exist","sqlState":"42703","occurredAt":"2026-11-21T10:00:05Z"}
+```
+
+A `metrics` event arrives every second, and a `sql-error` event arrives the moment a replayed statement fails. A stream closes after 30 minutes, when the client leaves, or when the sandbox is deleted.
 
 Error codes I used:
 
@@ -176,6 +189,8 @@ This is a learning project, not something to put on a public server.
 - The registry is in memory, so it only works with one running copy of the app.
 - The migration endpoint runs any SQL it receives. That is only safe because it runs inside the throwaway sandbox container and never touches a production database.
 - The replay is a simulator with fixed statements, not real production traffic.
+- One thread sends all live events, so one very slow client could delay the others.
+- A stream has no limit on the number of clients per sandbox.
 
 ## Problems I faced
 

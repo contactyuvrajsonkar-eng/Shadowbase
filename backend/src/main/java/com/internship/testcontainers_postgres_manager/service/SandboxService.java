@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -32,7 +33,7 @@ import com.internship.testcontainers_postgres_manager.exception.ApiException;
 /**
  * Business logic for sandboxes. The controller calls this class;
  * this class talks to Docker (through Testcontainers), the seeder, the migrator,
- * the replayer and the registry.
+ * the replayer, the event streamer and the registry.
  */
 @Service
 public class SandboxService {
@@ -46,6 +47,7 @@ public class SandboxService {
     private final SandboxSeeder seeder;
     private final SandboxMigrator migrator;
     private final SandboxReplayer replayer;
+    private final SandboxEventStreamer events;
     private final String postgresImage;
     private final String databaseName;
     private final String username;
@@ -56,6 +58,7 @@ public class SandboxService {
                           SandboxSeeder seeder,
                           SandboxMigrator migrator,
                           SandboxReplayer replayer,
+                          SandboxEventStreamer events,
                           @Value("${sandbox.postgres.image}") String postgresImage,
                           @Value("${sandbox.postgres.database}") String databaseName,
                           @Value("${sandbox.postgres.username}") String username,
@@ -64,6 +67,7 @@ public class SandboxService {
         this.seeder = seeder;
         this.migrator = migrator;
         this.replayer = replayer;
+        this.events = events;
         this.postgresImage = postgresImage;
         this.databaseName = databaseName;
         this.username = username;
@@ -130,6 +134,20 @@ public class SandboxService {
                     "limit must be between 1 and 500");
         }
         return new SqlErrorsResponse(sandboxId, record.getTelemetry().latestErrors(limit));
+    }
+
+    /** Opens a live event stream (Server-Sent Events) for one sandbox. */
+    public SseEmitter openEventStream(String sandboxId) {
+        SandboxRecord record = getRecord(sandboxId);
+
+        // Same lock as seed, migration, replay and delete
+        synchronized (record) {
+            // A delete may have finished while we waited for the lock
+            if (registry.find(sandboxId).isEmpty()) {
+                throw sandboxNotFound(sandboxId);
+            }
+            return events.subscribe(record);
+        }
     }
 
     /** Creates the sample tables and rows inside the sandbox's database. */
@@ -288,8 +306,9 @@ public class SandboxService {
                         "Could not stop the PostgreSQL container", e);
             }
 
-            // 2) Only now forget the sandbox
+            // 2) Only now forget the sandbox and end its live streams
             registry.remove(sandboxId);
+            events.closeAll(sandboxId);
             log.info("Sandbox {} deleted, container stopped and removed", sandboxId);
         }
     }

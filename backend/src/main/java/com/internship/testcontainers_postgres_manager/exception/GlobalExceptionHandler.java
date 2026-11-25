@@ -1,6 +1,8 @@
 package com.internship.testcontainers_postgres_manager.exception;
 
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.http.MediaType;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.stream.Collectors;
@@ -26,69 +28,75 @@ import jakarta.servlet.http.HttpServletRequest;
  */
 
 @RestControllerAdvice
-public class GlobalExceptionHandler 
-{
-private static final Logger log=LoggerFactory.getLogger(GlobalExceptionHandler.class);
+public class GlobalExceptionHandler {
+	private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
 // Our own errors: limit reached, Docker failure, (later) sandbox not found...
-@ExceptionHandler(ApiException.class)
-public ResponseEntity<ApiErrorResponse> handleApiException(
-        ApiException ex, HttpServletRequest request) {
-    if (ex.getStatus().is5xxServerError()) {
-        log.error("Server error: {}", ex.getMessage(), ex);
-    }
-    return build(ex.getStatus().value(), ex.getCode(), ex.getMessage(), request);
-}
+	@ExceptionHandler(ApiException.class)
+	public ResponseEntity<ApiErrorResponse> handleApiException(ApiException ex, HttpServletRequest request) {
+		if (ex.getStatus().is5xxServerError()) {
+			log.error("Server error: {}", ex.getMessage(), ex);
+		}
+		return build(ex.getStatus().value(), ex.getCode(), ex.getMessage(), request);
+	}
 
 // @Valid failed: for example a blank name
-@ExceptionHandler(MethodArgumentNotValidException.class)
-public ResponseEntity<ApiErrorResponse> handleValidation(
-        MethodArgumentNotValidException ex, HttpServletRequest request) {
-    String message = ex.getBindingResult().getFieldErrors().stream()
-            .map(FieldError::getDefaultMessage)
-            .collect(Collectors.joining("; "));
-    return build(HttpStatus.BAD_REQUEST.value(), "VALIDATION_ERROR", message, request);
-}
+	@ExceptionHandler(MethodArgumentNotValidException.class)
+	public ResponseEntity<ApiErrorResponse> handleValidation(MethodArgumentNotValidException ex,
+			HttpServletRequest request) {
+		String message = ex.getBindingResult().getFieldErrors().stream().map(FieldError::getDefaultMessage)
+				.collect(Collectors.joining("; "));
+		return build(HttpStatus.BAD_REQUEST.value(), "VALIDATION_ERROR", message, request);
+	}
 
 // Body missing or not valid JSON
-@ExceptionHandler(HttpMessageNotReadableException.class)
-public ResponseEntity<ApiErrorResponse> handleUnreadableBody(
-        HttpMessageNotReadableException ex, HttpServletRequest request) {
-    return build(HttpStatus.BAD_REQUEST.value(), "VALIDATION_ERROR",
-            "Request body is missing or is not valid JSON", request);
-}
-// A query parameter has the wrong type, for example ?limit=abc
-@ExceptionHandler(MethodArgumentTypeMismatchException.class)
-public ResponseEntity<ApiErrorResponse> handleTypeMismatch(
-        MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
-    return build(HttpStatus.BAD_REQUEST.value(), "VALIDATION_ERROR",
-            "Invalid value for parameter '" + ex.getName() + "'", request);
-}
-// Safety net for everything else
-@ExceptionHandler(Exception.class)
-public ResponseEntity<ApiErrorResponse> handleUnexpected(
-        Exception ex, HttpServletRequest request) {
+	@ExceptionHandler(HttpMessageNotReadableException.class)
+	public ResponseEntity<ApiErrorResponse> handleUnreadableBody(HttpMessageNotReadableException ex,
+			HttpServletRequest request) {
+		return build(HttpStatus.BAD_REQUEST.value(), "VALIDATION_ERROR", "Request body is missing or is not valid JSON",
+				request);
+	}
 
-    // Spring's own web errors (wrong URL = 404, wrong method = 405) must keep their status
-    if (ex instanceof ErrorResponse springError) {
-        int status = springError.getStatusCode().value();
-        HttpStatus known = HttpStatus.resolve(status);
-        String code = (known != null) ? known.name() : "HTTP_ERROR";
-        String detail = springError.getBody().getDetail();
-        return build(status, code, detail != null ? detail : "Request could not be processed", request);
+// A query parameter has the wrong type, for example ?limit=abc
+	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
+	public ResponseEntity<ApiErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex,
+			HttpServletRequest request) {
+		return build(HttpStatus.BAD_REQUEST.value(), "VALIDATION_ERROR",
+				"Invalid value for parameter '" + ex.getName() + "'", request);
+	}
+	
+    // A client closed a live stream while we were writing to it: normal, nothing to answer
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleClientGone(AsyncRequestNotUsableException ex) {
+        log.debug("Client closed the event stream: {}", ex.getMessage());
     }
 
-    log.error("Unexpected error", ex);
-    // Generic message: internal details are never sent to the client
-    return build(HttpStatus.INTERNAL_SERVER_ERROR.value(), "INTERNAL_ERROR",
-            "An unexpected error occurred", request);
-}
+// Safety net for everything else
+	@ExceptionHandler(Exception.class)
+	public ResponseEntity<ApiErrorResponse> handleUnexpected(Exception ex, HttpServletRequest request) {
+
+		// Spring's own web errors (wrong URL = 404, wrong method = 405) must keep their
+		// status
+		if (ex instanceof ErrorResponse springError) {
+			int status = springError.getStatusCode().value();
+			HttpStatus known = HttpStatus.resolve(status);
+			String code = (known != null) ? known.name() : "HTTP_ERROR";
+			String detail = springError.getBody().getDetail();
+			return build(status, code, detail != null ? detail : "Request could not be processed", request);
+		}
+
+		log.error("Unexpected error", ex);
+		// Generic message: internal details are never sent to the client
+		return build(HttpStatus.INTERNAL_SERVER_ERROR.value(), "INTERNAL_ERROR", "An unexpected error occurred",
+				request);
+	}
 
 // One place that builds the contract's error JSON
-private ResponseEntity<ApiErrorResponse> build(
-        int status, String code, String message, HttpServletRequest request) {
-    ApiErrorResponse body = new ApiErrorResponse(
-            Instant.now().truncatedTo(ChronoUnit.SECONDS),
-            status, code, message, request.getRequestURI());
-    return ResponseEntity.status(status).body(body);
-}
+	private ResponseEntity<ApiErrorResponse> build(int status, String code, String message,
+			HttpServletRequest request) {
+		ApiErrorResponse body = new ApiErrorResponse(Instant.now().truncatedTo(ChronoUnit.SECONDS), status, code,
+				message, request.getRequestURI());
+		// Always JSON, even if the client asked for text/event-stream
+		return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(body);
+	}
 }
