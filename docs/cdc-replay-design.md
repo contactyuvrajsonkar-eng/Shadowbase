@@ -76,3 +76,33 @@ After the sequence, order `id=4` should not exist in the sandbox.
 For delete events, do not depend on non-key fields in `before`; PostgreSQL may
 include only the primary key there. Convert `total_amount` to `BigDecimal`
 before binding it to JDBC.
+
+## Current State and Acceptance Criteria
+
+### Current state
+
+According to the current backend update, the replay endpoint runs three fixed
+statements every second. It does not consume Debezium events from Kafka.
+`sourceDatabase` is accepted but unused, and seeding inserts fixed sample data
+(2 customers and 2 orders).
+
+This is a simulator; it does not yet demonstrate CDC replay.
+
+### Acceptance criteria for actual CDC replay
+
+- Consume row-change events from `shadowbase.public.customers` and
+  `shadowbase.public.orders`.
+- Apply `r` and `c` events as idempotent inserts/upserts, `u` as an update,
+  and `d` as a delete. Ignore null-valued tombstones.
+- Execute generated SQL only against the selected sandbox database, using
+  allowlisted table/column names and JDBC PreparedStatements.
+- Preserve `NUMERIC` values such as `total_amount` without losing precision.
+- Verify that an inserted row appears in the sandbox, an update changes it,
+  and a delete removes it; confirm the source database remains unchanged.
+- Report replay status and SQL errors based on the actual replay results.
+
+### Decisions to confirm with the team
+
+- How a new sandbox gets its initial snapshot and Kafka starting position.
+- Whether the proposed error HTTP statuses and `SANDBOX_LIMIT_REACHED` code
+  should be added to the API contract.
