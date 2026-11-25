@@ -1,5 +1,6 @@
 package com.internship.testcontainers_postgres_manager.service;
-
+import java.util.ArrayList;
+import java.util.function.Consumer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -53,4 +54,18 @@ class SandboxTelemetryTest {
 		assertEquals("evt-002", items.get(1).eventId());
 		assertTrue(telemetry.latestErrors(50).size() == 3);
 	}
+    @Test
+    void errorListener_receivesEveryRecordedError_untilRemoved() {
+        SandboxTelemetry telemetry = new SandboxTelemetry();
+        List<SqlErrorItem> received = new ArrayList<>();
+        Consumer<SqlErrorItem> listener = received::add;
+
+        telemetry.addErrorListener(listener);
+        telemetry.recordError("UPDATE", "orders", "boom", "42703", 5);
+        telemetry.removeErrorListener(listener);
+        telemetry.recordError("UPDATE", "orders", "boom", "42703", 5);
+
+        assertEquals(1, received.size());
+        assertEquals("evt-001", received.get(0).eventId());
+    }
 }
