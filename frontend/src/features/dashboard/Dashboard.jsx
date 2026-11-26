@@ -1,13 +1,35 @@
+import { useEffect, useState } from "react";
 import "./Dashboard.css";
 
 import {
   queryData,
   errorRateData,
-  dashboardMetrics,
   recentActivity,
 } from "./mockData";
 
+import { getMetrics } from "./api";
+
 function Dashboard() {
+  const [metrics, setMetrics] = useState(null);
+  const [metricsError, setMetricsError] = useState("");
+
+  const sandboxId = import.meta.env.VITE_SANDBOX_ID;
+
+  useEffect(() => {
+    if (!sandboxId) {
+      setMetricsError("Sandbox ID is not configured.");
+      return;
+    }
+
+    getMetrics(sandboxId)
+      .then((data) => {
+        setMetrics(data);
+      })
+      .catch((error) => {
+        setMetricsError(error.message);
+      });
+  }, [sandboxId]);
+
   const maxQueries = Math.max(
     ...queryData.map((item) => item.value)
   );
@@ -18,6 +40,7 @@ function Dashboard() {
 
   return (
     <div className="app-layout">
+
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="brand">ShadowBase</div>
@@ -30,14 +53,6 @@ function Dashboard() {
           <a href="#" className="nav-item">
             Editor
           </a>
-
-          <a href="#" className="nav-item">
-            Settings
-          </a>
-
-          <a href="#" className="nav-item">
-            Activity
-          </a>
         </nav>
 
         <div className="system-status">
@@ -48,6 +63,7 @@ function Dashboard() {
 
       {/* Main Content */}
       <main className="main-content">
+
         {/* Header */}
         <header className="dashboard-header">
           <h1>ShadowBase Dashboard</h1>
@@ -57,12 +73,20 @@ function Dashboard() {
         {/* Overview */}
         <section className="overview-section">
           <h2>Overview</h2>
-          
+
           <p className="overview-subtitle">
-           Track database activity and migration performance
-        </p>
+            Track database activity and migration performance
+          </p>
+
+          {metricsError && (
+            <p className="metrics-error">
+              {metricsError}
+            </p>
+          )}
 
           <div className="metrics-grid">
+
+            {/* Queries Replayed */}
             <div className="metric-card">
               <div className="metric-icon">↻</div>
 
@@ -72,15 +96,18 @@ function Dashboard() {
                 </p>
 
                 <h3>
-                  {dashboardMetrics.queriesReplayed.toLocaleString()}
+                  {metrics
+                    ? metrics.queriesReplayed.toLocaleString()
+                    : "—"}
                 </h3>
 
                 <span className="metric-positive">
-                  +12.5% this week
+                  Live backend metric
                 </span>
               </div>
             </div>
 
+            {/* Error Count */}
             <div className="metric-card">
               <div className="metric-icon">!</div>
 
@@ -89,14 +116,19 @@ function Dashboard() {
                   Error Count
                 </p>
 
-                <h3>{dashboardMetrics.errorCount}</h3>
+                <h3>
+                  {metrics
+                    ? metrics.errorCount
+                    : "—"}
+                </h3>
 
                 <span className="metric-warning">
-                  +3 this week
+                  Live backend metric
                 </span>
               </div>
             </div>
 
+            {/* Error Rate */}
             <div className="metric-card">
               <div className="metric-icon">%</div>
 
@@ -105,14 +137,19 @@ function Dashboard() {
                   Error Rate
                 </p>
 
-                <h3>{dashboardMetrics.errorRate}%</h3>
+                <h3>
+                  {metrics
+                    ? `${metrics.errorRatePercent}%`
+                    : "—"}
+                </h3>
 
                 <span className="metric-positive">
-                  Within threshold
+                  Live backend metric
                 </span>
               </div>
             </div>
 
+            {/* Replication Lag */}
             <div className="metric-card">
               <div className="metric-icon">◷</div>
 
@@ -122,25 +159,31 @@ function Dashboard() {
                 </p>
 
                 <h3>
-                  {dashboardMetrics.replicationLag} ms
+                  {metrics
+                    ? `${metrics.lagMs} ms`
+                    : "—"}
                 </h3>
 
                 <span className="metric-positive">
-                  Stable
+                  Live backend metric
                 </span>
               </div>
             </div>
+
           </div>
         </section>
 
         {/* Charts */}
         <section className="charts-section">
+
           {/* Queries Replayed */}
           <div className="chart-card">
             <div className="chart-header">
               <div>
                 <h2>Queries Replayed</h2>
-                <p>Queries replayed during the week</p>
+                <p>
+                  Queries replayed during the week
+                </p>
               </div>
             </div>
 
@@ -181,7 +224,9 @@ function Dashboard() {
             <div className="chart-header">
               <div>
                 <h2>Error Rate</h2>
-                <p>Error rate during query replay</p>
+                <p>
+                  Error rate during query replay
+                </p>
               </div>
             </div>
 
@@ -216,6 +261,7 @@ function Dashboard() {
               })}
             </div>
           </div>
+
         </section>
 
         {/* Recent Activity */}
@@ -243,6 +289,7 @@ function Dashboard() {
             ))}
           </div>
         </section>
+
       </main>
     </div>
   );
