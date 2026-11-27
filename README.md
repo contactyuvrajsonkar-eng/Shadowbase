@@ -63,3 +63,26 @@ docker compose stop
 ```
 
 This stops the services without removing the database volume.
+
+## Replay Mapper Prototype
+
+The `replay-mapper` module converts deserialized Debezium PostgreSQL records into parameterized SQL plans.
+
+Supported source: `shadowbase_prod.public`  
+Supported tables: `customers` and `orders`
+
+- `c` (create) and `r` (snapshot read) map to UPSERT.
+- `u` (update) maps to UPDATE using the row's primary key.
+- `d` (delete) maps to DELETE using the Kafka key.
+- A null Kafka value (tombstone) is ignored.
+- Debezium Decimal values are decoded using the scale in the event schema.
+
+The module currently creates SQL plans; Kafka consumption and SQL execution against PostgreSQL are not implemented here.
+
+To run the manual demo from the project root:
+
+```cmd
+cd replay-mapper
+mvn clean test-compile
+java -cp "target\test-classes;target\classes" com.shadowbase.replay.MapperDemo
+```
