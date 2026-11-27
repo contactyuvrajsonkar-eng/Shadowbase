@@ -92,10 +92,14 @@ public class SandboxService {
         try {
             // Starts the container, then WAITS until PostgreSQL is ready
             container.start();
-        } catch (RuntimeException e) {
+        }   
+        catch (RuntimeException e) 
+        {
             stopQuietly(container);
+            String reason = describeStartFailure(e);
+            log.error("Sandbox container failed to start: {}", reason, e);
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
-                    "Could not start PostgreSQL container. Is Docker running?", e);
+                    "Could not start the PostgreSQL container: " + reason, e);
         }
 
         String sandboxId = registry.nextSandboxId();
@@ -324,6 +328,32 @@ public class SandboxService {
         } catch (RuntimeException ignored) {
             // The container may never have started; nothing to clean up
         }
+    }
+    // Turns a Testcontainers failure into a short, safe hint (no stack trace, no internals)
+    private String describeStartFailure(Throwable error) {
+        // The useful text is often in a nested cause, so read the whole chain
+        StringBuilder all = new StringBuilder();
+        Throwable t = error;
+        for (int i = 0; t != null && i < 10; i++, t = t.getCause()) {
+            all.append(t.getClass().getSimpleName()).append(' ')
+               .append(t.getMessage()).append(' ');
+        }
+        String text = all.toString().toLowerCase();
+
+        if (text.contains("could not find a valid docker environment")) {
+            return "Docker is not reachable from the backend. Start Docker Desktop and check DOCKER_HOST.";
+        }
+        if (text.contains("pull") || text.contains("containerfetchexception")
+                || text.contains("toomanyrequests") || text.contains("manifest")) {
+            return "an image could not be pulled. Check internet access and Docker Hub limits.";
+        }
+        if (text.contains("timed out") || text.contains("timeout")) {
+            return "PostgreSQL did not become ready in time. Check Docker's CPU and memory, then try again.";
+        }
+        if (text.contains("port is already allocated") || text.contains("address already in use")) {
+            return "a required port is already in use.";
+        }
+        return "see the backend log for the full error.";
     }
 
     // PostgreSQL error texts can span several lines: keep only the first one
