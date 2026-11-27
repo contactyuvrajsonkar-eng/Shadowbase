@@ -1,0 +1,358 @@
+{
+  "info": {
+    "name": "ShadowBase mid-review demo",
+    "description": "Requests in demo order. Run the 'Demo flow' folder one request at a time (not with the Runner, the SSE request in Extras never ends). Start the Spring Boot app and Docker Desktop first.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api/v1"
+    },
+    {
+      "key": "sandboxId",
+      "value": "sbx-001"
+    }
+  ],
+  "item": [
+    {
+      "name": "Demo flow",
+      "item": [
+        {
+          "name": "1. Create sandbox (fresh PostgreSQL in Docker)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/sandboxes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"mid-review-demo\",\n  \"sourceDatabase\": \"shadowbase_prod\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Starts a postgres:17-alpine container with Testcontainers. Check 'docker ps' afterwards."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"status is CREATED\", () => pm.expect(body.status).to.eql(\"CREATED\"));",
+                  "// remember the generated id for the next requests",
+                  "pm.collectionVariables.set(\"sandboxId\", body.sandboxId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Get sandbox",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/sandboxes/{{sandboxId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Seed: apply base schema + sample data",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/sandboxes/{{sandboxId}}/seed",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mode\": \"snapshot\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Creates public.customers and public.orders (same columns as the prod schema) and inserts the 2+2 sample rows."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"SEEDED\", () => pm.expect(body.status).to.eql(\"SEEDED\"));",
+                  "pm.test(\"2 customers\", () => pm.expect(body.rowCounts.customers).to.eql(2));",
+                  "pm.test(\"2 orders\", () => pm.expect(body.rowCounts.orders).to.eql(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Start replay (SIMULATOR for now)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/sandboxes/{{sandboxId}}/replay",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"START\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Runs 3 fixed statements per second against the sandbox. This is a simulator, not real Debezium replay yet."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"RUNNING\", () => pm.expect(pm.response.json().replayStatus).to.eql(\"RUNNING\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/sandboxes/{{sandboxId}}/metrics",
+            "description": "Send it twice, a few seconds apart: queriesReplayed grows."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"queries are being replayed\", () => pm.expect(pm.response.json().queriesReplayed).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Apply migration: drop orders.status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/sandboxes/{{sandboxId}}/migrations",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"script\": \"ALTER TABLE public.orders DROP COLUMN status;\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "After this, the replayed UPDATE statements fail with SQL state 42703."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"APPLIED\", () => pm.expect(pm.response.json().status).to.eql(\"APPLIED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. SQL errors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/sandboxes/{{sandboxId}}/errors?limit=50",
+            "description": "Wait a few seconds after step 6. Expect UPDATE on orders with sqlState 42703."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"has errors\", () => pm.expect(pm.response.json().items.length).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Stop replay",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/sandboxes/{{sandboxId}}/replay",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"STOP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"STOPPED\", () => pm.expect(pm.response.json().replayStatus).to.eql(\"STOPPED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. Delete sandbox (container removed)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/sandboxes/{{sandboxId}}",
+            "description": "Check 'docker ps' afterwards: the postgres container is gone, only Ryuk remains."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"204 No Content\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Extras (run manually)",
+      "item": [
+        {
+          "name": "Live events (SSE): run manually, it never ends",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": "{{baseUrl}}/sandboxes/{{sandboxId}}/events",
+            "description": "Run between steps 4 and 8. A metrics event arrives every second and a sql-error event after the migration. Cancel it when done. If Postman shows nothing live, use: curl.exe -N -H \"Accept: text/event-stream\" <url>"
+          }
+        },
+        {
+          "name": "Error demo: unknown sandbox",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/sandboxes/sbx-999"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"SANDBOX_NOT_FOUND\", () => pm.expect(pm.response.json().code).to.eql(\"SANDBOX_NOT_FOUND\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error demo: blank name",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/sandboxes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"sourceDatabase\": \"shadowbase_prod\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"VALIDATION_ERROR\", () => pm.expect(pm.response.json().code).to.eql(\"VALIDATION_ERROR\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
