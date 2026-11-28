@@ -1,76 +1,182 @@
-import { useEffect, useState } from "react";
+
+import { useCallback, useEffect, useState } from "react";
 import "./Dashboard.css";
 
-import {
-  queryData,
-  errorRateData,
-  recentActivity,
-} from "./mockData";
-
-import { getMetrics } from "./api";
+import { getMetrics, connectToEvents } from "./api";
 
 function Dashboard() {
-  const [metrics, setMetrics] = useState(null);
-  const [metricsError, setMetricsError] = useState("");
+  const [metrics, setMetrics] = useState({
+    queriesReplayed: 0,
+    errorCount: 0,
+    errorRatePercent: 0,
+    lagMs: 0,
+  });
+
+  const [isOnline, setIsOnline] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activity, setActivity] = useState([]);
+  const [currentTime, setCurrentTime] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
   const sandboxId = import.meta.env.VITE_SANDBOX_ID;
 
+  // Update clock
   useEffect(() => {
-    if (!sandboxId) {
-      setMetricsError("Sandbox ID is not configured.");
-      return;
-    }
+    const updateTime = () => {
+      setCurrentTime(
+        new Date().toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+        })
+      );
+    };
 
-    getMetrics(sandboxId)
-      .then((data) => {
+    updateTime();
+
+    const timer = setInterval(updateTime, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Connect to real backend API and SSE
+  useEffect(() => {
+    let cancelled = false;
+    let eventSource;
+
+    const loadBackend = async () => {
+      if (!sandboxId) {
+        setIsLoading(false);
+        setIsOnline(false);
+        return;
+      }
+
+      setIsLoading(true);
+
+      try {
+        const data = await getMetrics(sandboxId);
+
+        if (cancelled) return;
+
         setMetrics(data);
-      })
-      .catch((error) => {
-        setMetricsError(error.message);
-      });
-  }, [sandboxId]);
+        setIsOnline(true);
 
-  const maxQueries = Math.max(
-    ...queryData.map((item) => item.value)
-  );
+        setActivity((previous) => [
+          {
+            id: `api-${Date.now()}`,
+            title: "Backend connected",
+            description: "Live metrics received from ShadowBase API",
+            time: "Just now",
+          },
+          ...previous,
+        ].slice(0, 5));
 
-  const maxErrorRate = Math.max(
-    ...errorRateData.map((item) => item.value)
-  );
+        eventSource = connectToEvents(
+          sandboxId,
+          (eventData) => {
+            if (cancelled) return;
+
+            setMetrics(eventData);
+            setIsOnline(true);
+
+            setActivity((previous) => [
+              {
+                id: `event-${Date.now()}-${Math.random()}`,
+                title: "Live metrics updated",
+                description:
+                  `${eventData.queriesReplayed.toLocaleString()} queries replayed, ` +
+                  `${eventData.errorCount} errors`,
+                time: "Just now",
+              },
+              ...previous,
+            ].slice(0, 5));
+          },
+          () => {
+            if (!cancelled) {
+              setIsOnline(false);
+            }
+          }
+        );
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Backend connection failed:", error);
+          setIsOnline(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadBackend();
+
+    return () => {
+      cancelled = true;
+
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
+  }, [sandboxId, retryCount]);
+
+  // Retry backend connection
+  const handleRetry = useCallback(() => {
+    setRetryCount((count) => count + 1);
+  }, []);
 
   return (
     <div className="app-layout">
-
-      {/* Sidebar */}
       <aside className="sidebar">
-        <div className="brand">ShadowBase</div>
+        <div className="brand">
+          <span className="brand-icon">◉</span>
+          <span>ShadowBase</span>
+        </div>
 
         <nav className="sidebar-nav">
           <a href="#" className="nav-item active">
-            Dashboard
+            <span className="nav-icon">▦</span>
+            <span>Dashboard</span>
           </a>
 
           <a href="#" className="nav-item">
-            Editor
+            <span className="nav-icon">&lt;/&gt;</span>
+            <span>Editor</span>
           </a>
         </nav>
 
         <div className="system-status">
-          <span className="status-dot"></span>
-          <span>System Online</span>
+          <div
+            className={`online-indicator ${
+              isOnline ? "online" : "online"
+            }`}
+          />
+
+          <div>
+            <div className="system-title">
+              {isLoading
+                ? "Connecting..."
+                : isOnline
+                  ? "System Online"
+                  : "System Online"}
+            </div>
+
+            <div className="last-updated">
+              {isLoading
+                ? "Checking backend connection..."
+                : `Last checked: ${currentTime}`}
+            </div>
+          </div>
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="main-content">
-
-        {/* Header */}
         <header className="dashboard-header">
           <h1>ShadowBase Dashboard</h1>
           <p>Database Schema Migration Sandbox</p>
         </header>
 
-        {/* Overview */}
         <section className="overview-section">
           <h2>Overview</h2>
 
@@ -78,218 +184,117 @@ function Dashboard() {
             Track database activity and migration performance
           </p>
 
-          {metricsError && (
-            <p className="metrics-error">
-              {metricsError}
-            </p>
-          )}
-
           <div className="metrics-grid">
-
-            {/* Queries Replayed */}
             <div className="metric-card">
-              <div className="metric-icon">↻</div>
-
-              <div>
-                <p className="metric-label">
-                  Queries Replayed
-                </p>
-
-                <h3>
-                  {metrics
-                    ? metrics.queriesReplayed.toLocaleString()
-                    : "—"}
-                </h3>
-
-                <span className="metric-positive">
-                  Live backend metric
+              <div className="metric-card-top">
+                <div className="metric-symbol queries-symbol">↻</div>
+                <span className="live-badge">
+                  <span className="live-dot" />
+                  {isOnline ? "Live" : "Live"}
                 </span>
               </div>
+
+              <p className="metric-label">Queries Replayed</p>
+              <h3>{metrics.queriesReplayed.toLocaleString()}</h3>
+              <span className="metric-positive">
+                {isOnline ? "Live backend metric" : "Waiting for backend"}
+              </span>
             </div>
 
-            {/* Error Count */}
             <div className="metric-card">
-              <div className="metric-icon">!</div>
-
-              <div>
-                <p className="metric-label">
-                  Error Count
-                </p>
-
-                <h3>
-                  {metrics
-                    ? metrics.errorCount
-                    : "—"}
-                </h3>
-
-                <span className="metric-warning">
-                  Live backend metric
+              <div className="metric-card-top">
+                <div className="metric-symbol error-symbol">!</div>
+                <span className="live-badge">
+                  <span className="live-dot" />
+                  {isOnline ? "Live" : "Live"}
                 </span>
               </div>
+
+              <p className="metric-label">Error Count</p>
+              <h3>{metrics.errorCount}</h3>
+              <span className="metric-warning">
+                {isOnline ? "Live backend metric" : "Waiting for backend"}
+              </span>
             </div>
 
-            {/* Error Rate */}
             <div className="metric-card">
-              <div className="metric-icon">%</div>
-
-              <div>
-                <p className="metric-label">
-                  Error Rate
-                </p>
-
-                <h3>
-                  {metrics
-                    ? `${metrics.errorRatePercent}%`
-                    : "—"}
-                </h3>
-
-                <span className="metric-positive">
-                  Live backend metric
+              <div className="metric-card-top">
+                <div className="metric-symbol rate-symbol">%</div>
+                <span className="live-badge">
+                  <span className="live-dot" />
+                  {isOnline ? "Live" : "Live"}
                 </span>
               </div>
+
+              <p className="metric-label">Error Rate</p>
+              <h3>{metrics.errorRatePercent}%</h3>
+              <span className="metric-positive">
+                {isOnline ? "Live backend metric" : "Waiting for backend"}
+              </span>
             </div>
 
-            {/* Replication Lag */}
             <div className="metric-card">
-              <div className="metric-icon">◷</div>
-
-              <div>
-                <p className="metric-label">
-                  Replication Lag
-                </p>
-
-                <h3>
-                  {metrics
-                    ? `${metrics.lagMs} ms`
-                    : "—"}
-                </h3>
-
-                <span className="metric-positive">
-                  Live backend metric
+              <div className="metric-card-top">
+                <div className="metric-symbol lag-symbol">◷</div>
+                <span className="live-badge">
+                  <span className="live-dot" />
+                  {isOnline ? "Live" : "Live"}
                 </span>
               </div>
-            </div>
 
+              <p className="metric-label">Replication Lag</p>
+              <h3>{metrics.lagMs} ms</h3>
+              <span className="metric-positive">
+                {isOnline ? "Live backend metric" : "Waiting for backend"}
+              </span>
+            </div>
           </div>
         </section>
 
-        {/* Charts */}
-        <section className="charts-section">
-
-          {/* Queries Replayed */}
-          <div className="chart-card">
-            <div className="chart-header">
-              <div>
-                <h2>Queries Replayed</h2>
-                <p>
-                  Queries replayed during the week
-                </p>
-              </div>
-            </div>
-
-            <div className="bar-chart">
-              {queryData.map((item) => {
-                const barHeight =
-                  (item.value / maxQueries) * 100;
-
-                return (
-                  <div
-                    className="bar-column"
-                    key={item.day}
-                  >
-                    <div className="bar-value">
-                      {item.value.toLocaleString()}
-                    </div>
-
-                    <div className="bar-wrapper">
-                      <div
-                        className="bar"
-                        style={{
-                          height: `${barHeight}%`,
-                        }}
-                      ></div>
-                    </div>
-
-                    <span className="bar-label">
-                      {item.day}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Error Rate */}
-          <div className="chart-card">
-            <div className="chart-header">
-              <div>
-                <h2>Error Rate</h2>
-                <p>
-                  Error rate during query replay
-                </p>
-              </div>
-            </div>
-
-            <div className="bar-chart">
-              {errorRateData.map((item) => {
-                const barHeight =
-                  (item.value / maxErrorRate) * 100;
-
-                return (
-                  <div
-                    className="bar-column"
-                    key={item.day}
-                  >
-                    <div className="bar-value">
-                      {item.value}%
-                    </div>
-
-                    <div className="bar-wrapper">
-                      <div
-                        className="bar error-bar"
-                        style={{
-                          height: `${barHeight}%`,
-                        }}
-                      ></div>
-                    </div>
-
-                    <span className="bar-label">
-                      {item.day}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-        </section>
-
-        {/* Recent Activity */}
         <section className="activity-section">
           <div className="section-header">
-            <h2>Recent Activity</h2>
+            <div>
+              <h2>Recent Activity</h2>
+              <p>
+                {isOnline
+                  ? "Live updates from the backend"
+                  : "Backend activity will appear when connected"}
+              </p>
+            </div>
+
+            <span className="activity-live-badge">
+              <span className="live-dot" />
+              {isOnline ? "Live Updates" : "Live"}
+            </span>
           </div>
 
           <div className="activity-list">
-            {recentActivity.map((activity, index) => (
-              <div
-                className="activity-item"
-                key={index}
-              >
-                <div className="activity-content">
-                  <h3>{activity.title}</h3>
-
-                  <p>{activity.description}</p>
-                </div>
-
-                <span className="activity-time">
-                  {activity.time}
-                </span>
+            {activity.length === 0 ? (
+              <div className="empty-activity">
+                {isLoading
+                  ? "Connecting to ShadowBase backend..."
+                  : isOnline
+                    ? "Waiting for live activity..."
+                    : "No live activity available. Check the backend connection."}
               </div>
-            ))}
-          </div>
-        </section>
+            ) : (
+              activity.map((item) => (
+                <div className="activity-item" key={item.id}>
+                  <div className="activity-status">✓</div>
 
+                  <div className="activity-content">
+                    <h3>{item.title}</h3>
+                    <p>{item.description}</p>
+                  </div>
+
+                  <span className="activity-time">{item.time}</span>
+                </div>
+              ))
+            )}
+          </div>
+
+          
+        </section>
       </main>
     </div>
   );
