@@ -136,13 +136,8 @@ function Dashboard() {
 
         <nav className="sidebar-nav">
           <a href="#" className="nav-item active">
-            <span className="nav-icon">▦</span>
+            <span className="nav-icon">🛢️</span>
             <span>Dashboard</span>
-          </a>
-
-          <a href="#" className="nav-item">
-            <span className="nav-icon">&lt;/&gt;</span>
-            <span>Editor</span>
           </a>
         </nav>
 
@@ -165,7 +160,7 @@ function Dashboard() {
             <div className="last-updated">
               {isLoading
                 ? "Checking backend connection..."
-                : `Last checked: ${currentTime}`}
+                : `Last updated: ${currentTime}`}
             </div>
           </div>
         </div>
