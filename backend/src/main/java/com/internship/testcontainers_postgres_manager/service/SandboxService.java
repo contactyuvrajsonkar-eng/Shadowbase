@@ -1,6 +1,7 @@
 package com.internship.testcontainers_postgres_manager.service;
 
 import java.sql.SQLException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
@@ -42,6 +43,7 @@ public class SandboxService {
 
     // PostgreSQL always listens on 5432 INSIDE the container
     private static final int POSTGRES_INTERNAL_PORT = 5432;
+    private static final Duration START_TIMEOUT = Duration.ofSeconds(120);
 
     private final SandboxRegistry registry;
     private final SandboxSeeder seeder;
@@ -84,10 +86,12 @@ public class SandboxService {
         }
 
         // A fresh random password for every container: nothing secret in the code
+ 
         PostgreSQLContainer container = new PostgreSQLContainer(DockerImageName.parse(postgresImage))
                 .withDatabaseName(databaseName)
                 .withUsername(username)
-                .withPassword(UUID.randomUUID().toString());
+                .withPassword(UUID.randomUUID().toString())
+                .withStartupTimeout(START_TIMEOUT);
 
         try {
             // Starts the container, then WAITS until PostgreSQL is ready
