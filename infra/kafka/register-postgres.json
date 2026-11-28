@@ -1,0 +1,20 @@
+{
+  "name": "shadowbase-postgres-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "debezium",
+    "database.password": "dbz_dev_only",
+    "database.dbname": "shadowbase_prod",
+    "topic.prefix": "shadowbase",
+    "schema.include.list": "public",
+    "plugin.name": "pgoutput",
+    "slot.name": "shadowbase_slot",
+    "publication.name": "shadowbase_publication",
+    "publication.autocreate.mode": "disabled",
+    "snapshot.mode": "initial",
+    "heartbeat.interval.ms": "10000"
+  }
+}
